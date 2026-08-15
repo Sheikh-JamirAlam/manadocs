@@ -5,7 +5,17 @@ description = "Agentic System Backend"
 readme = "README.md"
 authors = [{ name = "Sheikh-JamirAlam", email = "alamjamir15@gmail.com" }]
 requires-python = ">=3.14"
-dependencies = ["fastapi[standard]>=0.141.1"]
+dependencies = [
+    "fastapi[standard]>=0.141.1",
+    "langchain-google-genai>=4.3.3",
+    "langgraph>=1.2.11",
+    "langgraph-checkpoint-postgres>=3.1.2",
+    "pgvector>=0.5.0",
+    "psycopg[binary]>=3.3.4",
+    "pydantic>=2.13.4",
+    "pypdf>=6.16.0",
+    "python-dotenv>=1.2.2",
+]
 
 [tool.uv]
 package = false
