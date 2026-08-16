@@ -18,6 +18,10 @@ class Citation(BaseModel):
         alias="p", default=None, description="1-based page number where the quote is located.")
     section_header: Optional[str] = Field(
         alias="sh", default=None, description="Section/header where this quote appeared (if applicable).")
+    character_index: Optional[int] = Field(
+        alias="ci", default=None, description="Zero-based character offset of the citation within its line.",)
+    line_number: Optional[int] = Field(
+        alias="ln", default=None, description="One-based line number containing the citation.",)
 
 
 class ConflictingSourceValue(BaseModel):
