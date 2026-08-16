@@ -14,7 +14,7 @@ class AgentState(TypedDict):
     # Data populated by future nodes
     proposed_updates: Optional[List[Dict[str, Any]]]
     rule_violations: Optional[List[Dict[str, Any]]]
-    contradictions: Optional[List[Dict[str, Any]]]
+    conflicts: Optional[List[Dict[str, Any]]]
 
     # Error tracking
     error: Optional[str]

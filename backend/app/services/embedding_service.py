@@ -8,6 +8,25 @@ EMBEDDING_DIMENSIONS = 1536
 EMBEDDING_BATCH_SIZE = 32
 
 
+def generate_text_embedding(
+    text: str,
+    model_name: Optional[str] = None,
+) -> List[float]:
+    if not text or not text.strip():
+        raise ValueError("Text to embed must not be empty.")
+
+    embedding_model = GoogleGenerativeAIEmbeddings(
+        model=model_name or "gemini-embedding-001",
+        output_dimensionality=EMBEDDING_DIMENSIONS,
+    )
+    vector = embedding_model.embed_query(text)
+    if len(vector) != EMBEDDING_DIMENSIONS:
+        raise ValueError(
+            f"Embedding has dimension {len(vector)}; expected {EMBEDDING_DIMENSIONS}."
+        )
+    return vector
+
+
 def generate_embeddings(
     chunks: List[Dict[str, Any]],
     model_name: Optional[str] = None,

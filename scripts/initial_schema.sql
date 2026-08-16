@@ -43,6 +43,10 @@ CREATE TABLE IF NOT EXISTS document_chunks (
 CREATE TABLE IF NOT EXISTS document_facts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     document_id UUID NOT NULL UNIQUE REFERENCES documents(id) ON DELETE CASCADE,
+    vendor_name VARCHAR(255),
+    client_name VARCHAR(255),
+    summary TEXT,
+    summary_embedding VECTOR(1536),
     facts JSONB NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -76,11 +80,12 @@ CREATE TABLE IF NOT EXISTS rule_violations (
 );
 
 
-CREATE TABLE IF NOT EXISTS contradictions (
+CREATE TABLE IF NOT EXISTS conflicts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     thread_id VARCHAR(255) NOT NULL,
     field_name VARCHAR(100) NOT NULL,
     status VARCHAR(50) DEFAULT 'pending',                  -- 'pending', 'resolved', 'reopened'
+    description TEXT,
     active_value JSONB,
     active_source_doc_id UUID REFERENCES documents(id) ON DELETE SET NULL,
     conflicting_sources JSONB NOT NULL,
@@ -116,18 +121,25 @@ CREATE TABLE IF NOT EXISTS execution_logs (
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
-
 -- HNSW Vector Index for fast Cosine Distance similarity search
 CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding 
 ON document_chunks USING hnsw (embedding vector_cosine_ops);
+
+-- Index for Document Summary Vector Search
+CREATE INDEX IF NOT EXISTS idx_document_facts_summary_embedding 
+ON document_facts USING hnsw (summary_embedding vector_cosine_ops);
+
+-- B-Tree Indexes for rapid exact-match filtering
+CREATE INDEX IF NOT EXISTS idx_facts_vendor_client 
+ON document_facts (vendor_name, client_name);
 
 -- GIN Index for rapid JSONB querying on document facts
 CREATE INDEX IF NOT EXISTS idx_document_facts_facts 
 ON document_facts USING gin (facts);
 
 -- Lookup indexes for thread_id and status filters
-CREATE INDEX IF NOT EXISTS idx_contradictions_thread_status 
-ON contradictions (thread_id, status);
+CREATE INDEX IF NOT EXISTS idx_conflicts_thread_status 
+ON conflicts (thread_id, status);
 
 CREATE INDEX IF NOT EXISTS idx_rule_violations_thread_status 
 ON rule_violations (thread_id, status);
@@ -142,6 +154,6 @@ CREATE TRIGGER set_updated_at_document_chunks BEFORE UPDATE ON document_chunks F
 CREATE TRIGGER set_updated_at_document_facts BEFORE UPDATE ON document_facts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER set_updated_at_rules BEFORE UPDATE ON rules FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER set_updated_at_rule_violations BEFORE UPDATE ON rule_violations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER set_updated_at_contradictions BEFORE UPDATE ON contradictions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER set_updated_at_conflicts BEFORE UPDATE ON conflicts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER set_updated_at_deliverables BEFORE UPDATE ON deliverables FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER set_updated_at_execution_logs BEFORE UPDATE ON execution_logs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

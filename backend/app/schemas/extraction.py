@@ -16,10 +16,8 @@ class ExtractedFact(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     field_name: str = Field(
         alias="f", description="Standardized name of the attribute (e.g., 'hourly_rate', 'vendor_name', 'payment_terms', 'total_amount').")
-    value: Union[str, int, float, bool] = Field(
-        alias="v", description="Extracted value.")
-    unit: Optional[str] = Field(
-        alias="u", default=None, description="Unit if applicable (e.g., 'USD', 'days').")
+    description: str = Field(
+        alias="d", description="1-line description of the extracted fact in detail.")
     category: str = Field(
         alias="c", default="general", description="Category classification (e.g., 'financial', 'legal', 'operational', 'identity').",)
     citation: Citation = Field(
@@ -32,6 +30,8 @@ class DocumentExtractionResult(BaseModel):
         alias="dt", description="Classification of the document.")
     vendor_name: Optional[str] = Field(
         alias="vn", default=None, description="Name of the external vendor/party involved, if identifiable.",)
+    client_name: Optional[str] = Field(
+        alias="cn", default=None, description="Name of the external client involved, if identifiable.",)
     summary: str = Field(
         alias="sum", description="2-3 sentence overview of the document.")
     facts: List[ExtractedFact] = Field(
