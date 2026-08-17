@@ -55,10 +55,8 @@ CREATE TABLE IF NOT EXISTS document_facts (
 
 CREATE TABLE IF NOT EXISTS rules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    rule_code VARCHAR(100) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT NOT NULL,
-    condition_params JSONB DEFAULT '{}'::jsonb,
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -70,7 +68,6 @@ CREATE TABLE IF NOT EXISTS rule_violations (
     thread_id VARCHAR(255) NOT NULL,
     document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     rule_id UUID NOT NULL REFERENCES rules(id) ON DELETE CASCADE,
-    severity VARCHAR(20) DEFAULT 'medium',                 -- 'low', 'medium', 'high'
     description TEXT NOT NULL,
     citation JSONB DEFAULT '{}'::jsonb,
     status VARCHAR(50) DEFAULT 'pending',                  -- 'pending', 'resolved'
@@ -99,11 +96,10 @@ CREATE TABLE IF NOT EXISTS conflicts (
 
 CREATE TABLE IF NOT EXISTS deliverables (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    thread_id VARCHAR(255) NOT NULL,
     title VARCHAR(255) NOT NULL,
     content TEXT NOT NULL,
     version INT DEFAULT 1,
-    status VARCHAR(50) DEFAULT 'draft',                    -- 'draft', 'review_required', 'finalized'
+    index INT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );

@@ -15,6 +15,10 @@ class AgentState(TypedDict):
     proposed_updates: Optional[List[Dict[str, Any]]]
     rule_violations: Optional[List[Dict[str, Any]]]
     conflicts: Optional[List[Dict[str, Any]]]
+    master_deliverable_text: Optional[str]
+
+    # Matched documents_id with current document
+    matched_document_ids: Optional[List[str]]
 
     # Error tracking
     error: Optional[str]

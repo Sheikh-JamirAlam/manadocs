@@ -2,14 +2,6 @@ from typing import List, Optional, Union
 from pydantic import BaseModel, Field, ConfigDict
 
 
-class TransactionMatchResult(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-    matched_document_ids: List[str] = Field(
-        alias="mids", description="List of document_ids that belong to the exact same commercial transaction as the incoming document.")
-    reasoning: str = Field(
-        alias="rsn", description="Brief narrative explaining why these specific documents match the transaction and why others were excluded.")
-
-
 class Citation(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     quote: str = Field(
@@ -31,6 +23,8 @@ class ConflictingSourceValue(BaseModel):
         alias="dn", default=None, description="Filename/title.")
     value: Union[str, int, float, bool] = Field(
         alias="v", description="The conflicting value extracted from this document.")
+    description: str = Field(
+        alias="d", description="The conflicting description extracted from this document.")
     citation: Citation = Field(
         alias="cit", description="Exact location and quote backing this specific value.")
 
