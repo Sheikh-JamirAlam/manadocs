@@ -41,6 +41,6 @@ def build_extraction_graph(checkpointer: AsyncPostgresSaver):
     workflow.add_edge("analyze_and_extract", "find_matching_documents")
     workflow.add_edge("find_matching_documents", "audit_document_conflicts")
     workflow.add_edge("audit_document_conflicts", "check_against_rule")
-    # workflow.add_edge("check_against_rule", "generate_deliverable")
-    workflow.set_finish_point("check_against_rule")
+    workflow.add_edge("check_against_rule", "generate_deliverable")
+    workflow.set_finish_point("generate_deliverable")
     return workflow.compile(checkpointer=checkpointer)
