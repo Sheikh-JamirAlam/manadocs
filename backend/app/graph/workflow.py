@@ -20,10 +20,10 @@ def get_database_url() -> str:
     if database_url:
         return database_url
     return (
-        f"postgresql://{os.getenv('PGUSER', os.getenv('POSTGRES_USER', 'postgres'))}:"
-        f"{os.getenv('PGPASSWORD', os.getenv('POSTGRES_PASSWORD', ''))}@"
+        f"postgresql://{os.getenv('PGUSER', 'postgres')}:"
+        f"{os.getenv('PGPASSWORD', '')}@"
         f"{os.getenv('PGHOST', 'localhost')}:{os.getenv('PGPORT', '5432')}/"
-        f"{os.getenv('PGDATABASE', os.getenv('POSTGRES_DB', 'doctask'))}"
+        f"{os.getenv('PGDATABASE', 'doctask')}"
     )
 
 

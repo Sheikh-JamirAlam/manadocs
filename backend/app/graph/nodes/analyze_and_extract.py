@@ -3,8 +3,9 @@ from app.services.document_parser import extract_pages, format_chunks_for_prompt
 from app.services.calculate_exact_citation import calculate_exact_citation
 from app.graph.state import AgentState
 from app.schemas.extraction import DocumentExtractionResult
-from app.db.facts import insert_facts
-from app.db.documents import register_document
+from app.db.facts import get_one_fact, insert_facts
+from app.db.documents import (register_document, save_document_error,
+                              update_current_node, update_document_status)
 from app.db.chunks import register_chunks
 import os
 from pathlib import Path
@@ -19,28 +20,58 @@ llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite")
 structured_llm = llm.with_structured_output(DocumentExtractionResult)
 
 
-# LangGrapde node for analyzing a document and extracting structured facts
+# LangGraph node for analyzing a document and extracting structured facts
 def analyze_and_extract_node(state: AgentState) -> Dict[str, Any]:
     document_path = state.get("document_path")
-    if not document_path or not os.path.exists(document_path):
-        return {"error": f"File not found at specified path: {document_path}"}
+    document_id = state.get("document_id")
 
     try:
-        registration_result = register_document(state)
-        if registration_result.get("error"):
-            return registration_result
+        if not document_path or not os.path.exists(document_path):
+            error_message = f"File not found at specified path: {document_path}"
+            if document_id:
+                save_document_error(str(document_id), error_message)
+            return {"error": error_message}
 
-        if (
-            registration_result.get("registration_status") == "duplicate"
-            and registration_result.get("existing_status") == "processed"
-        ):
+        if not document_id:
+            registration_result = register_document(state)
+            if registration_result.get("error"):
+                return registration_result
+
+            document_id = registration_result.get("document_id")
+            if not document_id:
+                return {
+                    "error": "Document registration did not return document_id."
+                }
+        else:
+            registration_result = {
+                "document_id": str(document_id),
+                "thread_id": state.get("thread_id"),
+                "error": None,
+            }
+
+        update_current_node(str(document_id), "analyze_and_extract")
+
+        existing_facts = get_one_fact(str(document_id))
+        if existing_facts:
+            recovered_facts = DocumentExtractionResult.model_validate(
+                existing_facts["facts"]
+            )
             return {
                 **registration_result,
-                "extracted_facts": None,
+                "document_id": str(document_id),
+                "extracted_facts": recovered_facts,
+                "error": None,
             }
+
+        update_document_status(str(document_id), "processing")
 
         document_chunks = parse_document(document_path)
         if not document_chunks:
+            if document_id:
+                save_document_error(
+                    str(document_id),
+                    "The document contains no extractable text.",
+                )
             return {
                 **registration_result,
                 "extracted_facts": None,
@@ -49,10 +80,13 @@ def analyze_and_extract_node(state: AgentState) -> Dict[str, Any]:
 
         embedded_chunks = generate_embeddings(document_chunks)
         chunk_result = register_chunks(
-            registration_result["document_id"],
+            str(document_id),
             embedded_chunks,
         )
         if chunk_result.get("error"):
+            if document_id:
+                save_document_error(str(document_id),
+                                    chunk_result["error"])
             return {
                 **registration_result,
                 **chunk_result,
@@ -102,11 +136,14 @@ def analyze_and_extract_node(state: AgentState) -> Dict[str, Any]:
         summary_embedding = generate_text_embedding(extraction_result.summary)
 
         fact_result = insert_facts(
-            registration_result["document_id"],
+            str(document_id),
             citation_payload,
             summary_embedding,
         )
         if fact_result.get("error"):
+            if document_id:
+                save_document_error(str(document_id),
+                                    fact_result["error"])
             return {
                 **registration_result,
                 **chunk_result,
@@ -118,9 +155,11 @@ def analyze_and_extract_node(state: AgentState) -> Dict[str, Any]:
             **registration_result,
             **chunk_result,
             **fact_result,
-            "document_id": registration_result["document_id"],
+            "document_id": str(document_id),
             "extracted_facts": citation_payload,
             "error": None,
         }
     except Exception as exc:
+        if document_id:
+            save_document_error(str(document_id), str(exc))
         return {"error": f"Error in analyze_and_extract node: {exc}"}

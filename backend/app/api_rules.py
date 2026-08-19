@@ -1,11 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from langgraph.types import Command
-from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-
 from app.db.rules import insert_rules
-from app.graph.workflow import build_extraction_graph, get_database_url
+from app.db.documents import find_document_by_thread_id
+from app.services.workflow_queue import enqueue_workflow
 
 router = APIRouter(prefix="/rules", tags=["rules"])
 
@@ -36,10 +34,21 @@ async def create_rules(request: RulesCreateRequest):
 
 @router.post("/resolve")
 async def resolve_rule_violation(request: RuleViolationResolutionRequest):
-    async with AsyncPostgresSaver.from_conn_string(get_database_url()) as checkpointer:
-        graph = build_extraction_graph(checkpointer)
-        result = await graph.ainvoke(
-            Command(resume=request.decision.model_dump()),
-            config={"configurable": {"thread_id": request.thread_id}},
+    document = find_document_by_thread_id(request.thread_id)
+    if not document:
+        raise HTTPException(status_code=404, detail="Workflow document not found.")
+    if document["status"] != "waiting_for_rule":
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Document is not waiting for rule verification. "
+                f"Current status: {document['status']}"
+            ),
         )
-    return {"thread_id": request.thread_id, "state": result}
+
+    enqueue_workflow(
+        request.thread_id,
+        str(document["document_id"]),
+        request.decision.model_dump(),
+    )
+    return {"thread_id": request.thread_id, "status": "queued"}

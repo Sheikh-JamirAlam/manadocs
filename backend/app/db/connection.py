@@ -11,11 +11,9 @@ def database_connection() -> psycopg.Connection:
         connection = psycopg.connect(
             host=os.getenv("PGHOST", "localhost"),
             port=os.getenv("PGPORT", "5432"),
-            dbname=os.getenv("PGDATABASE", os.getenv(
-                "POSTGRES_DB", "doctask")),
-            user=os.getenv("PGUSER", os.getenv("POSTGRES_USER", "postgres")),
-            password=os.getenv("PGPASSWORD", os.getenv(
-                "POSTGRES_PASSWORD", "")),
+            dbname=os.getenv("PGDATABASE", "doctask"),
+            user=os.getenv("PGUSER", "postgres"),
+            password=os.getenv("PGPASSWORD", ""),
         )
 
     register_vector(connection)

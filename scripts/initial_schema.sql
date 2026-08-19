@@ -20,8 +20,11 @@ CREATE TABLE IF NOT EXISTS documents (
     file_size_bytes BIGINT NOT NULL,
     document_type VARCHAR(50) NOT NULL DEFAULT 'unknown', -- 'contract', 'amendment', 'invoice'
     vendor_name VARCHAR(255),
-    status VARCHAR(50) NOT NULL DEFAULT 'pending',          -- 'pending', 'processing', 'processed', 'flagged', 'failed'
+    status VARCHAR(50) NOT NULL DEFAULT 'pending',          -- 'pending', 'processing', 'waiting_for_conflict', 'waiting_for_rule', 'completed', 'failed'
     error_message TEXT,
+    thread_id VARCHAR(255) UNIQUE,
+    current_node VARCHAR(100),
+    retry_count INT NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
@@ -81,13 +84,10 @@ CREATE TABLE IF NOT EXISTS conflicts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     thread_id VARCHAR(255) NOT NULL,
     field_name VARCHAR(100) NOT NULL,
-    status VARCHAR(50) DEFAULT 'pending',                  -- 'pending', 'resolved', 'reopened'
+    status VARCHAR(50) DEFAULT 'pending',                  -- 'pending', 'resolved'
     description TEXT,
-    active_value JSONB,
-    active_source_doc_id UUID REFERENCES documents(id) ON DELETE SET NULL,
     conflicting_sources JSONB NOT NULL,
-    selected_doc_id UUID REFERENCES documents(id) ON DELETE SET NULL,
-    resolution VARCHAR(50),
+    resolution VARCHAR(50),                                -- 'enforce_conflict', 'override_conflict'
     version INT DEFAULT 1,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -106,17 +106,19 @@ CREATE TABLE IF NOT EXISTS deliverables (
 );
 
 
-CREATE TABLE IF NOT EXISTS execution_logs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+CREATE TABLE IF NOT EXISTS workflow_events (
+    id BIGSERIAL PRIMARY KEY,
+    document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     thread_id VARCHAR(255) NOT NULL,
-    node_name VARCHAR(100) NOT NULL,
-    tokens_prompt INT DEFAULT 0,
-    tokens_completion INT DEFAULT 0,
-    estimated_cost NUMERIC(10, 6) DEFAULT 0.0,
-    execution_time_ms INT NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    node_name VARCHAR(100),
+    event_type VARCHAR(50) NOT NULL,                         -- 'queued', 'started', 'status_changed', 'waiting_for_user', 'decision', 'failed'
+    message TEXT,
+    details JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_thread_id
+ON documents(thread_id) WHERE thread_id IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_document_chunks_embedding 
 ON document_chunks USING hnsw (embedding vector_cosine_ops);
@@ -139,8 +141,11 @@ ON rule_violations (thread_id, status);
 CREATE INDEX IF NOT EXISTS idx_documents_file_hash 
 ON documents (file_hash);
 
-CREATE INDEX IF NOT EXISTS idx_execution_logs_thread_id 
-ON execution_logs (thread_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_events_thread_id_id
+ON workflow_events (thread_id, id);
+
+CREATE INDEX IF NOT EXISTS idx_workflow_events_document_id_id
+ON workflow_events (document_id, id);
 
 CREATE INDEX IF NOT EXISTS idx_deliverables_related_document_ids 
 ON deliverables USING gin (related_document_ids);
@@ -160,4 +165,3 @@ CREATE TRIGGER set_updated_at_rules BEFORE UPDATE ON rules FOR EACH ROW EXECUTE 
 CREATE TRIGGER set_updated_at_rule_violations BEFORE UPDATE ON rule_violations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER set_updated_at_conflicts BEFORE UPDATE ON conflicts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER set_updated_at_deliverables BEFORE UPDATE ON deliverables FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER set_updated_at_execution_logs BEFORE UPDATE ON execution_logs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

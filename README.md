@@ -1,99 +1,91 @@
 # DocTask
 
-## Schema Design
+DocTask is an agentic document-review system for vendor contracts, amendments,
+invoices, and other documents that describe the same business transaction.
 
-Table `documents` [File Tracker]
+It watches a folder for new documents, extracts grounded facts with citations,
+matches related documents, detects conflicts, checks configurable business
+rules, and produces a consolidated deliverable. Conflicts and rule findings are
+paused for human review before the workflow continues. Workflow state is
+checkpointed in PostgreSQL, and progress is available through Server-Sent
+Events so a client can display each stage as it runs.
 
-- `id` (UUID, Primary Key)
-- `filename` (VARCHAR)
-- `filepath` (VARCHAR)
-- `file_hash` (VARCHAR) — SHA-256 hash to detect duplicate files
-- `file_size_bytes` (BIGINT)
-- `document_type` (VARCHAR) — 'contract', 'amendment', 'invoice', or 'unknown'
-- `vendor_name` (VARCHAR)
-- `status` (VARCHAR) — 'pending', 'processing', 'processed', 'flagged', 'failed'
-- `error_message` (TEXT)
-- `created_at` (TIMESTAMP)
-- `updated_at` (TIMESTAMP)
+## Start with Docker
 
-Table `document_chunks` [Vector Store for RAG]
+Docker is the recommended way to run the complete system. It starts the API and
+the PostgreSQL/pgvector database together.
 
-- `id` (UUID, Primary Key)
-- `document_id` (UUID, Foreign Key -> documents.id)
-- `chunk_index` (INT)
-- `content` (TEXT) — The raw text of the chunk
-- `embedding` (VECTOR(1536)) — pgvector embedding column
-- `metadata` (JSONB) — Page numbers, section headers, etc.
-- `created_at` (TIMESTAMP)
-- `updated_at` (TIMESTAMP)
+### Prerequisites
 
-Table `extracted_facts` [Structured Output]
+- Docker Desktop on Windows/macOS, or Docker Engine and Compose on Linux
+- A Gemini API key
+- A local folder containing synthetic or public documents you are permitted to process
 
-- `id` (UUID, Primary Key)
-- `document_id` (UUID, Foreign Key -> documents.id)
-- `facts` (JSONB) — Single JSON payload of extracted key-value pairs with nested citations (page numbers, quotes)
-- `created_at` (TIMESTAMP)
-- `updated_at` (TIMESTAMP)
+### Setup
 
-Table `rules` [Business Policies]
+1. Copy the environment template:
 
-- `id` (UUID, Primary Key)
-- `rule_code` (VARCHAR) — e.g., 'RULE_MAX_INVOICE_AMOUNT'
-- `name` (VARCHAR)
-- `description` (TEXT)
-- `condition_params` (JSONB) — Threshold parameters (e.g., `{"max_amount": 10000}`)
-- `is_active` (BOOLEAN)
-- `created_at` (TIMESTAMP)
-- `updated_at` (TIMESTAMP)
+   ```bash
+   cp .env.example .env
+   ```
 
-Table `rule_violations ` [Single-Document Policy Breaks]
+2. Edit `.env` and set `GEMINI_API_KEY`, `PGPASSWORD`, and `HOST_WATCH_FOLDER`.
+   `HOST_WATCH_FOLDER` must point to an existing local folder containing
+   documents.
 
-- `id` (UUID, Primary Key)
-- `thread_id` (VARCHAR) — Maps directly to the LangGraph execution thread
-- `document_id` (UUID, Foreign Key -> documents.id)
-- `rule_id` (UUID, Foreign Key -> rules.id)
-- `severity` (VARCHAR) — 'high', 'medium', 'low'
-- `description` (TEXT) — Human-readable summary of the rule violation
-- `citation` (JSONB) — Page number and quote breaking the rule
-- `status` (VARCHAR) — 'pending', 'resolved'
-- `resolution` (VARCHAR) — 'enforce_rule', 'override_rule'
-- `created_at` (TIMESTAMP)
-- `updated_at` (TIMESTAMP)
+3. Start the API and database from the repository root:
 
-Table `contradictions` [Two-Document Conflicts]
+   ```bash
+   docker compose up --build
+   ```
 
-- `id` (UUID, Primary Key)
-- `thread_id` (VARCHAR) — Maps directly to the LangGraph execution thread
-- `doc_a_id` (UUID, Foreign Key -> documents.id)
-- `doc_b_id` (UUID, Foreign Key -> documents.id)
-- `field_name` (VARCHAR) — e.g., 'hourly_rate'
-- `doc_a_value` (JSONB) — Extracted value and citation for Document A
-- `doc_b_value` (JSONB) — Extracted value and citation for Document B
-- `status` (VARCHAR) — 'pending', 'resolved'
-- `selected_doc_id` (UUID, Foreign Key -> documents.id) — Stores the chosen document UUID upon review
-- `resolution` (VARCHAR) — 'use_doc_a', 'use_doc_b'
-- `created_at` (TIMESTAMP)
-- `updated_at` (TIMESTAMP)
+   The API is available at [http://localhost:8000](http://localhost:8000).
+   The host watch folder is mounted into the backend as `/data/documents`.
 
-Table `deliverables` [Master Report]
+4. To run in the background:
 
-- `id` (UUID, Primary Key)
-- `thread_id` (VARCHAR)
-- `title` (VARCHAR)
-- `content` (TEXT) — Current draft of the deliverable
-- `version` (INT) — Incrementing version number on updates
-- `status` (VARCHAR) — 'draft', 'review_required', 'finalized'
-- `created_at` (TIMESTAMP)
-- `updated_at` (TIMESTAMP)
+   ```bash
+   docker compose up --build -d
+   ```
 
-Table `execution_logs` [Telemetry & Cost Tracking]
+5. To stop the system:
 
-- `id` (UUID, Primary Key)
-- `thread_id` (VARCHAR)
-- `node_name` (VARCHAR) — e.g., 'extract_facts', 'audit_rules'
-- `tokens_prompt` (INT)
-- `tokens_completion` (INT)
-- `estimated_cost` (NUMERIC)
-- `execution_time_ms` (INT)
-- `created_at` (TIMESTAMP)
-- `updated_at` (TIMESTAMP)
+   ```bash
+   docker compose down
+   ```
+
+   Add `-v` only when you intentionally want to remove the PostgreSQL data
+   volume and start with a fresh database.
+
+## Workflow and API
+
+The workflow moves through these stages:
+
+1. Analyze and extract cited facts.
+2. Find related documents.
+3. Review and resolve conflicts.
+4. Check the configured rules.
+5. Review and resolve rule findings.
+6. Generate or update the deliverable.
+
+Resolution requests return immediately with a queued response. The backend
+continues the workflow asynchronously.
+
+Useful endpoints include:
+
+```text
+POST /conflicts/resolve
+POST /rules/resolve
+GET  /workflow/{thread_id}/events
+GET  /workflow/{thread_id}/events/stream
+```
+
+The SSE endpoint emits durable workflow events and supports reconnecting with
+the `Last-Event-ID` header or the `after` query parameter.
+
+## Data and safety
+
+Use synthetic, public, or otherwise authorized documents only. Document text is
+treated as untrusted data; instructions found inside a source document are not
+workflow commands. Extracted claims and findings retain source citations so the
+result can be reviewed against the original documents.

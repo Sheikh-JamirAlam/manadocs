@@ -4,6 +4,7 @@ from typing import Any, Dict
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 
+from app.db.documents import update_current_node
 from app.db.facts import get_one_fact, query_facts, vector_query_similar_facts
 from app.graph.state import AgentState
 from app.schemas.match_documents import TransactionMatchResult
@@ -26,6 +27,8 @@ def facts_for_matching(document: Dict[str, Any]) -> Dict[str, Any]:
 
 def find_matching_documents_node(state: AgentState) -> Dict[str, Any]:
     document_id = state.get("document_id")
+    if document_id:
+        update_current_node(document_id, "find_matching_documents")
     extracted_facts = state.get("extracted_facts") or {}
     if hasattr(extracted_facts, "model_dump"):
         extracted_facts = extracted_facts.model_dump(mode="json")

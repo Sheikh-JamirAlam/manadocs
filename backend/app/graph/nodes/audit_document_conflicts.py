@@ -4,6 +4,7 @@ from typing import Any, Dict
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.types import interrupt
 
+from app.db.documents import update_current_node, update_document_status
 from app.db.facts import get_one_fact
 from app.db.conflicts import get_pending_conflicts
 from app.db.conflicts import insert_conflicts, resolve_conflict
@@ -31,6 +32,8 @@ def facts_for_audit(document: Dict[str, Any]) -> Dict[str, Any]:
 
 def audit_document_conflicts_node(state: AgentState) -> Dict[str, Any]:
     document_id = state.get("document_id")
+    if document_id:
+        update_current_node(document_id, "audit_document_conflicts")
 
     # Gatekeeping for pending conflicts: if any exist, pause the graph and request human resolution
     pending_conflicts = get_pending_conflicts(state.get("thread_id") or "")
@@ -45,7 +48,7 @@ def audit_document_conflicts_node(state: AgentState) -> Dict[str, Any]:
         resolved_conflict = resolve_conflict(
             thread_id=state.get("thread_id") or "",
             conflict_id=str(decision.get("conflict_id", "")),
-            selected_document_id=str(decision.get("selected_document_id", "")),
+            decision=str(decision.get("decision", "")),
         )
 
         remaining_conflicts = get_pending_conflicts(
@@ -61,11 +64,15 @@ def audit_document_conflicts_node(state: AgentState) -> Dict[str, Any]:
         state["conflicts"] = resolved_conflicts
 
         if remaining_conflicts:
+            if document_id:
+                update_document_status(document_id, "waiting_for_conflict")
             interrupt({
                 "thread_id": state.get("thread_id"),
                 "conflicts": remaining_conflicts,
                 "message": "Human resolution is required for the remaining conflicts.",
             })
+        elif document_id:
+            update_document_status(document_id, "processing")
         return {
             "conflicts": resolved_conflicts,
             "matched_document_ids": state.get("matched_document_ids") or [],
@@ -123,11 +130,16 @@ def audit_document_conflicts_node(state: AgentState) -> Dict[str, Any]:
             )
             # Add conflicts to the checkpointed graph state
             state["conflicts"] = stored_conflicts
+            if document_id:
+                update_document_status(document_id, "waiting_for_conflict")
             interrupt({
                 "thread_id": state.get("thread_id"),
                 "conflicts": stored_conflicts,
                 "message": "Human resolution is required for these conflicts.",
             })
+
+    if document_id:
+        update_document_status(document_id, "processing")
 
     return {
         "conflicts": stored_conflicts,
