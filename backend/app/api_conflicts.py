@@ -1,9 +1,29 @@
 from fastapi import APIRouter, HTTPException
+from app.db.connection import database_connection
 from app.db.documents import find_document_by_thread_id
 from app.schemas.conflict_resolution import ConflictResolutionRequest
 from app.services.workflow_queue import enqueue_workflow
 
 router = APIRouter(prefix="/conflicts", tags=["conflicts"])
+
+
+@router.get("")
+async def list_conflicts(status: str | None = None):
+    query = """SELECT id, thread_id, field_name, status, description,
+        resolution, conflicting_sources, created_at, updated_at
+        FROM conflicts"""
+    params: tuple = ()
+    if status:
+        query += " WHERE status = %s"
+        params = (status,)
+    query += " ORDER BY created_at DESC"
+    with database_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, params)
+            return [{"id": str(r[0]), "thread_id": r[1], "field_name": r[2],
+                     "status": r[3], "description": r[4], "resolution": r[5],
+                     "conflicting_sources": r[6], "created_at": r[7], "updated_at": r[8]}
+                    for r in cursor.fetchall()]
 
 
 @router.post("/resolve")

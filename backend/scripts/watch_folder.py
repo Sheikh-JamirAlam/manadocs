@@ -143,10 +143,6 @@ async def watch() -> None:
         while True:
             poll_number += 1
             paths = discover_documents(folder)
-            print(
-                f"[watcher] Poll #{poll_number}: found {len(paths)} supported file(s).",
-                flush=True,
-            )
             for path in paths:
                 try:
                     stat = path.stat()
@@ -157,11 +153,6 @@ async def watch() -> None:
                         "waiting_for_conflict",
                         "waiting_for_rule",
                     }:
-                        print(
-                            f"[watcher] Skipping cached {path.name} "
-                            f"(status={cached[2]}).",
-                            flush=True,
-                        )
                         continue
 
                     result = await process_document(graph, path)

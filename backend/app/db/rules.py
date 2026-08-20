@@ -40,6 +40,18 @@ def get_active_rules() -> List[Dict[str, Any]]:
     return [{"id": str(row[0]), "name": row[1], "description": row[2]} for row in rows]
 
 
+def delete_rule(rule_id: str) -> bool:
+    with database_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "DELETE FROM rules WHERE id = %s RETURNING id",
+                (rule_id,),
+            )
+            deleted = cursor.fetchone() is not None
+        connection.commit()
+    return deleted
+
+
 def insert_rule_violations(thread_id: str, document_id: str,
                            violations: List[Mapping[str, Any]]) -> List[Dict[str, Any]]:
     if not thread_id or not document_id:
@@ -78,6 +90,27 @@ def get_pending_rule_violations(thread_id: str) -> List[Dict[str, Any]]:
                    ORDER BY created_at""",
                 (thread_id,),
             )
+            rows = cursor.fetchall()
+    return [
+        {"id": str(row[0]), "thread_id": row[1], "document_id": str(row[2]),
+         "rule_id": str(row[3]), "description": row[4], "citation": row[5],
+         "status": row[6], "resolution": row[7]}
+        for row in rows
+    ]
+
+
+def get_rule_violations(thread_id: str | None = None) -> List[Dict[str, Any]]:
+    query = """SELECT id, thread_id, document_id, rule_id, description,
+                      citation, status, resolution
+               FROM rule_violations"""
+    params: tuple[str, ...] = ()
+    if thread_id:
+        query += " WHERE thread_id = %s"
+        params = (thread_id,)
+    query += " ORDER BY created_at DESC"
+    with database_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, params)
             rows = cursor.fetchall()
     return [
         {"id": str(row[0]), "thread_id": row[1], "document_id": str(row[2]),

@@ -272,3 +272,23 @@ def find_document_by_thread_id(thread_id: str) -> Optional[Dict[str, Any]]:
         "error_message": row[5],
         "retry_count": row[6],
     }
+
+
+def find_related_documents(thread_id: Optional[str], document_id: str) -> List[Dict[str, Any]]:
+    if not thread_id:
+        return []
+    with database_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """SELECT id, filename, document_type, status, thread_id
+                   FROM documents
+                   WHERE thread_id = %s AND id <> %s
+                   ORDER BY created_at""",
+                (thread_id, document_id),
+            )
+            rows = cursor.fetchall()
+    return [
+        {"id": str(row[0]), "filename": row[1], "document_type": row[2],
+         "status": row[3], "thread_id": row[4]}
+        for row in rows
+    ]

@@ -100,6 +100,29 @@ def get_one_fact(document_id: str) -> Optional[Dict[str, Any]]:
         "vendor_name": row[1],
         "client_name": row[2],
         "summary": row[3],
+        "facts": row[5],
+    }
+
+
+def get_one_fact_with_embedding(document_id: str) -> Optional[Dict[str, Any]]:
+    with database_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT document_id, vendor_name, client_name, summary, summary_embedding, facts
+                FROM document_facts
+                WHERE document_id = %s
+                """,
+                (document_id,),
+            )
+            row = cursor.fetchone()
+    if not row:
+        return None
+    return {
+        "document_id": row[0],
+        "vendor_name": row[1],
+        "client_name": row[2],
+        "summary": row[3],
         "summary_embedding": row[4],
         "facts": row[5],
     }

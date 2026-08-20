@@ -64,3 +64,20 @@ def register_chunks(document_id: str, chunks: List[Dict[str, Any]]) -> Dict[str,
         }
     except Exception as exc:
         return {"error": f"Chunk registration failed: {exc}"}
+
+
+def get_document_chunks(document_id: str) -> List[Dict[str, Any]]:
+    with database_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """SELECT chunk_index, content, metadata
+                   FROM document_chunks
+                   WHERE document_id = %s
+                   ORDER BY chunk_index""",
+                (document_id,),
+            )
+            rows = cursor.fetchall()
+    return [
+        {"chunk_index": row[0], "content": row[1], "metadata": row[2] or {}}
+        for row in rows
+    ]

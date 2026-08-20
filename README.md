@@ -78,10 +78,19 @@ POST /conflicts/resolve
 POST /rules/resolve
 GET  /workflow/{thread_id}/events
 GET  /workflow/{thread_id}/events/stream
+
+POST /mcp  (Streamable HTTP MCP server)
 ```
 
 The SSE endpoint emits durable workflow events and supports reconnecting with
 the `Last-Event-ID` header or the `after` query parameter.
+
+The MCP server exposes machine-callable tools for workflow status, event
+history, pending conflicts, conflict resolution, pending rule violations, rule
+resolution, and rule creation. MCP clients connect to
+`http://localhost:8000/mcp` and can drive the same human-gated workflow as the
+REST API. A machine client can approve or reject findings, but it cannot bypass
+the workflow's state checks or silently commit a review decision.
 
 ## Data and safety
 
