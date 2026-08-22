@@ -14,15 +14,28 @@ export function Library() {
   const [documents, setDocuments] = useState<ApiDocument[]>([]);
   const [summary, setSummary] = useState<ApiLibrarySummary | null>(null);
   const [error, setError] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
   const refreshConflicts = useConflictStore((state) => state.refreshConflicts);
   const refreshFindings = useFindingStore((state) => state.refreshFindings);
+  const uploadFiles = useCallback(async (files: FileList | File[]) => {
+    const supportedFiles = Array.from(files).filter((file) => /\.(pdf|docx|txt)$/i.test(file.name));
+    if (!supportedFiles.length) {
+      setError("Please choose a PDF, DOCX, or TXT file.");
+      return;
+    }
+    setError("");
+    try {
+      await Promise.all(supportedFiles.map((file) => api.upload(file)));
+      const [nextDocuments, nextSummary] = await Promise.all([api.listDocuments(), api.getLibrarySummary()]);
+      setDocuments(nextDocuments);
+      setSummary(nextSummary);
+    } catch {
+      setError("Upload failed.");
+    }
+  }, []);
   const refreshLibrary = useCallback(() => {
-    void Promise.all([
-      api.listDocuments(),
-      api.getLibrarySummary(),
-      refreshConflicts(),
-      refreshFindings(),
-    ]).then(([nextDocuments, nextSummary]) => {
+    void Promise.all([api.listDocuments(), api.getLibrarySummary(), refreshConflicts(), refreshFindings()]).then(([nextDocuments, nextSummary]) => {
       setDocuments(nextDocuments);
       setSummary(nextSummary);
     });
@@ -93,20 +106,15 @@ export function Library() {
         <label className="primary">
           ＋ Upload documents
           <input
+            ref={uploadInputRef}
             hidden
             type="file"
+            multiple
             accept=".pdf,.docx,.txt"
-            onChange={(e) =>
-              e.target.files?.[0] &&
-              api
-                .upload(e.target.files[0])
-                .then(() => Promise.all([api.listDocuments(), api.getLibrarySummary()]))
-                .then(([nextDocuments, nextSummary]) => {
-                  setDocuments(nextDocuments);
-                  setSummary(nextSummary);
-                })
-                .catch(() => setError("Upload failed."))
-            }
+            onChange={(e) => {
+              if (e.target.files) void uploadFiles(e.target.files);
+              e.target.value = "";
+            }}
           />
         </label>
       </section>
@@ -161,11 +169,34 @@ export function Library() {
         </div>
       </div>
       <div className="workspace-grid" ref={grid}>
-        <div className="dropzone">
-          <div className="drop-icon">↥</div>
+        <div
+          className={`dropzone${isDragging ? " is-dragging" : ""}`}
+          role="button"
+          tabIndex={0}
+          onClick={() => uploadInputRef.current?.click()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") uploadInputRef.current?.click();
+          }}
+          onDragEnter={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragOver={(e) => e.preventDefault()}
+          onDragLeave={(e) => {
+            if (e.currentTarget === e.target) setIsDragging(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDragging(false);
+            if (e.dataTransfer.files.length) void uploadFiles(e.dataTransfer.files);
+          }}
+        >
           <strong>Drop documents here</strong>
           <span>PDF, DOCX, TXT up to 50 MB</span>
-          <button className="secondary">Browse files</button>
+          <button className="secondary" type="button" onClick={(e) => {
+            e.stopPropagation();
+            uploadInputRef.current?.click();
+          }}>Browse files</button>
         </div>
         <div className="mini-card dark-card">
           <small>ACTIVE TRANSACTION</small>

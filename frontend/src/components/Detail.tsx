@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowLeft02Icon } from "@hugeicons/core-free-icons";
 import { AppShell } from "./layout";
 import { api, type ApiDocument, type ApiDocumentChunk, type ApiFact, type ApiRelatedDocument } from "../api/client";
 import { useWorkflowStream, type WorkflowEvent } from "../hooks/useWorkflowStream";
@@ -52,17 +54,14 @@ export function Detail() {
     <AppShell>
       <div className="detail-top">
         <div>
-          <Link to="/" className="back">
-            ← Document library
+          <Link to="/" className="back flex items-center gap-1">
+            <HugeiconsIcon icon={ArrowLeft02Icon} size={14} />
+            Document library
           </Link>
           <h1>{doc.filename}</h1>
           <div className="detail-meta">
             <span className="file-icon">{fileType}</span> {doc.document_type} <i /> {doc.thread_id || "No workflow thread"} <i /> Uploaded {new Date(doc.created_at).toLocaleDateString()}
           </div>
-        </div>
-        <div className="detail-actions">
-          <button className="secondary">Download</button>
-          <button className="primary">Approve workflow</button>
         </div>
       </div>
       <div className="stage-track">
@@ -86,7 +85,7 @@ export function Detail() {
             {content.length ? (
               content.map((section, index) => (
                 <p className="whitespace-pre-wrap" key={index}>
-                  {highlightCitation(section, activeFact?.citation?.quote)}
+                  {highlightCitation(section, activeFact?.citation?.quote, fileType === "PDF")}
                 </p>
               ))
             ) : (
@@ -115,25 +114,6 @@ export function Detail() {
               </small>
             </button>
           ))}
-          <div className="related">
-            <h3>Related documents</h3>
-            {doc.related_documents?.length ? (
-              doc.related_documents.map((related) => (
-                <Link to={`/documents/${related.id}`} key={related.id}>
-                  <span className="file-icon">{related.filename.split(".").pop()?.toUpperCase() || "FILE"}</span>
-                  <span>
-                    <b>{related.filename}</b>
-                    <small>
-                      {related.document_type} · {related.status}
-                    </small>
-                  </span>
-                  <span>›</span>
-                </Link>
-              ))
-            ) : (
-              <small>No related documents found for this workflow.</small>
-            )}
-          </div>
         </aside>
       </div>
     </AppShell>

@@ -1,11 +1,33 @@
 import type { ApiDocumentChunk } from "../api/client";
 
-export function highlightCitation(text: string, quote: string | undefined) {
+export function highlightCitation(text: string, quote: string | undefined, isPdf = false) {
   if (!quote?.trim()) return text;
   const normalizedQuote = quote.trim().toLocaleLowerCase();
-  const start = text.toLocaleLowerCase().indexOf(normalizedQuote);
+  let start = text.toLocaleLowerCase().indexOf(normalizedQuote);
+  let end = start + quote.trim().length;
+  if (start < 0 && isPdf) {
+    const normalize = (value: string) => value
+      .replace(/\\n|\/n|\r?\n/g, " ")
+      .replace(/\s+/g, " ")
+      .toLocaleLowerCase();
+    const normalizedText = normalize(text);
+    const normalizedCitation = normalize(quote.trim());
+    start = normalizedText.indexOf(normalizedCitation);
+    if (start >= 0) {
+      const originalIndexes: number[] = [];
+      let normalizedIndex = 0;
+      for (let index = 0; index < text.length; index += 1) {
+        if (/\s/.test(text[index]) && index > 0 && /\s/.test(text[index - 1])) continue;
+        originalIndexes[normalizedIndex] = index;
+        normalizedIndex += 1;
+      }
+      const originalStart = originalIndexes[start];
+      const originalEnd = originalIndexes[start + normalizedCitation.length - 1];
+      start = originalStart;
+      end = originalEnd === undefined ? start : originalEnd + 1;
+    }
+  }
   if (start < 0) return text;
-  const end = start + quote.trim().length;
   return (
     <>
       {text.slice(0, start)}

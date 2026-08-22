@@ -29,38 +29,46 @@ def check_against_rule_node(state: AgentState) -> Dict[str, Any]:
     pending_violations = get_pending_rule_violations(
         state.get("thread_id") or "")
     if pending_violations:
-        decision = interrupt({
-            "thread_id": state.get("thread_id"),
-            "state": {**state, "rule_violations": pending_violations},
-            "rule_violations": pending_violations,
-            "message": "Human validation is required for these rule violations.",
-        })
-        if not isinstance(decision, dict):
-            raise ValueError("Rule violation decision must be an object.")
-        resolved = resolve_rule_violation(
-            thread_id=state.get("thread_id") or "",
-            violation_id=str(decision.get("rule_violation_id", "")),
-            decision=str(decision.get("decision", "")),
-        )
-        remaining = [
-            violation for violation in pending_violations
-            if violation["id"] != resolved["id"]
-        ]
-        if remaining:
-            update_document_status(
-                state["document_id"], "waiting_for_rule"
-            )
-            interrupt({
+        resolved_violations = []
+        while pending_violations:
+            decision = interrupt({
                 "thread_id": state.get("thread_id"),
-                "state": {**state, "rule_violations": remaining},
-                "rule_violations": remaining,
+                "state": {**state, "rule_violations": pending_violations},
+                "rule_violations": pending_violations,
                 "message": "Human validation is required for these rule violations.",
             })
-        else:
-            update_document_status(state["document_id"], "processing")
+            if not isinstance(decision, dict):
+                raise ValueError("Rule violation decision must be an object.")
+
+            decision_id = str(decision.get("rule_violation_id", ""))
+            current_pending_ids = {violation["id"] for violation in pending_violations}
+            if decision_id not in current_pending_ids:
+                # A queued resume can be stale when two decisions were submitted
+                # close together and an earlier resume already handled this item.
+                # Refresh the database state and keep waiting for real pending items.
+                pending_violations = get_pending_rule_violations(
+                    state.get("thread_id") or "")
+                continue
+
+            resolved = resolve_rule_violation(
+                thread_id=state.get("thread_id") or "",
+                violation_id=decision_id,
+                decision=str(decision.get("decision", "")),
+            )
+            resolved_violations.append(resolved)
+            pending_violations = get_pending_rule_violations(
+                state.get("thread_id") or "")
+
+            if pending_violations:
+                update_document_status(
+                    state["document_id"], "waiting_for_rule"
+                )
+            else:
+                update_document_status(state["document_id"], "processing")
+
         return {
             "extracted_facts": reconciled_facts,
-            "rule_violations": [resolved, *remaining],
+            "rule_violations": resolved_violations,
             "error": None,
         }
 

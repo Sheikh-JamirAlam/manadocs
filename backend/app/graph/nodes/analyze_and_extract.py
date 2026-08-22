@@ -105,17 +105,20 @@ def analyze_and_extract_node(state: AgentState) -> Dict[str, Any]:
 
         CRITICAL INSTRUCTIONS FOR CITATIONS:
         - Identify exact page numbers from the '[PAGE X]' markers in the text. If no marker is present for a fact, omit the page number rather than guessing.
-        - Ensure every extracted fact includes an exact verbatim quote in `citation.quote`.
-        - Keep `citation.quote` strictly short: extract only the MINIMAL snippet (5-12 words max) necessary to prove the fact.
-        - GOOD: "Net 30 days from invoice date"
-        - BAD (too long): "The payment terms for this agreement, as agreed by both parties, shall be Net 30 days from the invoice date"
+        - `citation.quote` MUST be a contiguous substring copied character-for-character from DOCUMENT TEXT, including original punctuation, capitalization, abbreviations, and parenthetical text. Do not rephrase, normalize, summarize, expand abbreviations, or "clean up" the wording in any way — even if your version would be semantically equivalent to the original.
+        - Keep `citation.quote` short: aim for the MINIMAL contiguous span (roughly 5-12 words) that proves the fact. Achieve brevity ONLY by trimming words off the start and/or end of the relevant sentence — never by rewording or reconstructing the sentence.
+        - If you cannot find a contiguous span of 12 words or fewer that adequately proves the fact, use a longer verbatim span instead of paraphrasing. A longer exact quote is always better than a short inexact one.
+        - Before finalizing each citation, verify silently that the quote string could be found via an exact or near-exact substring search in DOCUMENT TEXT. If it could not, go back and copy the real text instead.
         - Do not restrict descriptions or citations to the price alone.
         - When extracting facts from tables, treat each row as a complete line item. Your description MUST include all column details for that row (e.g., service name, unit, unit rate, and estimated quantity/volume).
         - Categorize each fact (e.g., 'financial', 'operational', 'legal', 'identity').
-        - Extract ONLY key business facts (e.g., payment terms, totals, party names, dates, rates, termination clauses).
+
+        WHAT COUNTS AS A FACT — BE EXHAUSTIVE, NOT CONSERVATIVE:
+        - Extract every discrete business fact, not just the most obvious ones. This includes but is not limited to: payment terms, totals, party names, dates, rates, and termination clauses, as well as notice periods, renewal/auto-renewal terms, liability caps and indemnification terms, insurance requirements, SLAs and performance guarantees, escalation procedures, sub-line-item fees and per-incident charges, penalty/late-fee clauses, confidentiality terms, and any other quantifiable or contractually binding statement.
         - Do not omit items with $0.00 rates, included services, per-incident fees, or zero quantities.
-        - Ignore generic fluff, headers, and standard boilerplate text.
+        - Ignore generic fluff, headers, and standard boilerplate text (e.g. "This Agreement is entered into by and between the parties...").
         - If the document does not support a fact, do not invent it.
+        - Before finalizing your output, re-scan the document once more specifically looking for any financial, legal, or operational fact you have not yet captured. Err on the side of extracting more granular facts rather than fewer.
 
         EMPTY OR UNREADABLE TEXT:
         - If DOCUMENT TEXT is empty, whitespace-only, or contains no meaningfully extractable content (e.g. OCR garbage from a scanned image), return an empty facts list and set `no_extractable_text = true`. Do not infer, guess, or fabricate facts to fill the schema.

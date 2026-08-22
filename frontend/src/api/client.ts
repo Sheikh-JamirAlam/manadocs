@@ -30,10 +30,11 @@ export type ApiConflict = {
   conflicting_sources: ApiConflictSource[];
   created_at?: string;
 };
-export type ApiFinding = { id: string; thread_id: string; document_id: string; rule_id: string; description: string; citation: Record<string, unknown>; status: string };
+export type ApiFinding = { id: string; thread_id: string; document_id: string; rule_id: string; description: string; citation?: ApiCitation; status: string; resolution?: string };
 export type ApiRule = { id: string; name: string; description: string; is_active: boolean };
 export type CreateRule = { name: string; description: string };
 export type ApiDeliverable = { id: string; title: string; content: string; version: number; related_document_ids: string[] };
+export type ApiMasterDeliverable = { title: string; content: string; filename: string; updated_at: number };
 export type ApiLibrarySummary = {
   document_count: number;
   in_pipeline: number;
@@ -63,6 +64,7 @@ export const api = {
   createRules: (rules: CreateRule[]) => client.post<ApiRule[]>("/rules", { rules }).then((r) => r.data),
   deleteRule: (id: string) => client.delete<void>(`/rules/${id}`).then(() => undefined),
   listDeliverables: () => client.get<ApiDeliverable[]>("/deliverables").then((r) => r.data),
+  getMasterDeliverable: () => client.get<ApiMasterDeliverable>("/deliverables/master").then((r) => r.data),
   resolveConflict: (thread_id: string, conflict_id: string, decision: "accept" | "reject") => client.post("/conflicts/resolve", { thread_id, decision: { conflict_id, decision } }),
   resolveFinding: (thread_id: string, rule_violation_id: string, decision: "accept" | "reject") => client.post("/rules/resolve", { thread_id, decision: { rule_violation_id, decision } }),
 };

@@ -139,9 +139,7 @@ async def watch() -> None:
         graph = build_extraction_graph(checkpointer)
         print("[watcher] Extraction graph built. Entering polling loop.", flush=True)
 
-        poll_number = 0
         while True:
-            poll_number += 1
             paths = discover_documents(folder)
             for path in paths:
                 try:
@@ -198,12 +196,6 @@ async def watch() -> None:
                         file=sys.stderr,
                         flush=True,
                     )
-
-            print(
-                f"[watcher] Poll #{poll_number} complete. "
-                f"Sleeping {interval:g} second(s).",
-                flush=True,
-            )
             await asyncio.sleep(interval)
 
 

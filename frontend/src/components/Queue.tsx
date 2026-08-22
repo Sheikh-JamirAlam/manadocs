@@ -74,7 +74,19 @@ export function Queue({ kind }: { kind: "conflicts" | "findings" }) {
             )}
             <div className="queue-actions">
               {item.status === "resolved" ? (
-                <button className="secondary">View resolution</button>
+                isFinding ? (
+                  <div
+                    className={`${!(item as ApiFinding).resolution ? "" : (item as ApiFinding).resolution === "enforce_rule" ? "border-red-200 bg-red-100 text-red-800" : "border-lime-300 bg-lime-200 text-lime-800"} px-3 py-2 border text-xs font-semibold rounded-md`}
+                  >
+                    {!(item as ApiFinding).resolution ? "Loading..." : (item as ApiFinding).resolution === "enforce_rule" ? "Rule enforced" : "Rule ignored"}
+                  </div>
+                ) : (
+                  <div
+                    className={`${!(item as ApiConflict).resolution ? "" : (item as ApiConflict).resolution === "enforce_conflict" ? "border-red-200 bg-red-100 text-red-800" : "border-lime-300 bg-lime-200 text-lime-800"} px-3 py-2 border text-xs font-semibold rounded-md`}
+                  >
+                    {!(item as ApiConflict).resolution ? "Loading..." : (item as ApiConflict).resolution === "enforce_conflict" ? "Conflict enforced" : "Conflict ignored"}
+                  </div>
+                )
               ) : (
                 <button
                   className="primary flex gap-1 items-center"

@@ -74,7 +74,7 @@ export function ReviewDetail({ kind }: { kind: "finding" | "conflict" }) {
             {content.length ? (
               content.map((section, index) => (
                 <p className="whitespace-pre-wrap" key={index}>
-                  {highlightCitation(section, finding?.citation?.quote ? String(finding.citation.quote) : undefined)}
+                  {highlightCitation(section, finding?.citation?.quote ? String(finding.citation.quote) : undefined, doc.filename.toLowerCase().endsWith(".pdf"))}
                 </p>
               ))
             ) : (
@@ -105,10 +105,10 @@ export function ReviewDetail({ kind }: { kind: "finding" | "conflict" }) {
                 <span>{item.status}</span>
               </div>
               <b>{item.description}</b>
-              {Boolean(item.citation?.quote) && <p>“{String(item.citation.quote)}”</p>}
+              {Boolean(item.citation?.quote) && <p>“{String(item.citation?.quote)}”</p>}
               <small>
                 ⌖ Page {String(item.citation?.page_number ?? "—")}
-                {String(item.citation?.section_header ?? "") ? ` · ${String(item.citation.section_header)}` : ""}
+                {String(item.citation?.section_header ?? "") ? ` · ${String(item.citation?.section_header)}` : ""}
               </small>
               {item.status === "pending" && (
                 <div className="queue-actions">

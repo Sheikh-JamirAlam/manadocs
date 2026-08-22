@@ -141,7 +141,7 @@ export function ConflictDetail() {
                 {content.length ? (
                   content.map((section, sectionIndex) => (
                     <p className="whitespace-pre-wrap" key={sectionIndex}>
-                      {highlightCitation(section, citation?.quote ? String(citation.quote) : undefined)}
+                      {highlightCitation(section, citation?.quote ? String(citation.quote) : undefined, document.filename.toLowerCase().endsWith(".pdf"))}
                     </p>
                   ))
                 ) : (
