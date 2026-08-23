@@ -1,7 +1,7 @@
 import json
 from typing import Any, Dict
 
-from langchain_google_genai import ChatGoogleGenerativeAI
+from app.services.model_provider import get_structured_model
 
 from langgraph.types import interrupt
 
@@ -13,9 +13,6 @@ from app.schemas.rule_audit import RuleAuditResult
 from dotenv import load_dotenv
 
 load_dotenv()
-
-llm = ChatGoogleGenerativeAI(model="gemini-3.6-flash")
-structured_llm = llm.with_structured_output(RuleAuditResult)
 
 
 def check_against_rule_node(state: AgentState) -> Dict[str, Any]:
@@ -41,11 +38,9 @@ def check_against_rule_node(state: AgentState) -> Dict[str, Any]:
                 raise ValueError("Rule violation decision must be an object.")
 
             decision_id = str(decision.get("rule_violation_id", ""))
-            current_pending_ids = {violation["id"] for violation in pending_violations}
+            current_pending_ids = {violation["id"]
+                                   for violation in pending_violations}
             if decision_id not in current_pending_ids:
-                # A queued resume can be stale when two decisions were submitted
-                # close together and an earlier resume already handled this item.
-                # Refresh the database state and keep waiting for real pending items.
                 pending_violations = get_pending_rule_violations(
                     state.get("thread_id") or "")
                 continue
@@ -110,7 +105,9 @@ def check_against_rule_node(state: AgentState) -> Dict[str, Any]:
     {json.dumps(reconciled_facts, ensure_ascii=False, default=str)}
     </facts>
     """
-    result = structured_llm.invoke(prompt)
+    result = get_structured_model(
+        "gemini-3.6-flash", RuleAuditResult
+    ).invoke(prompt)
     violations = [item.model_dump(mode="json") for item in result.violations]
     stored = insert_rule_violations(state.get("thread_id") or "", state.get(
         "document_id") or "", violations) if violations else []

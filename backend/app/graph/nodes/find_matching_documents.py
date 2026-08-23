@@ -2,7 +2,7 @@ import json
 from typing import Any, Dict
 
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
+from app.services.model_provider import get_structured_model
 
 from app.db.documents import update_current_node
 from app.db.facts import (get_one_fact_with_embedding, query_facts,
@@ -11,9 +11,6 @@ from app.graph.state import AgentState
 from app.schemas.match_documents import TransactionMatchResult
 
 load_dotenv()
-
-llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash")
-structured_llm = llm.with_structured_output(TransactionMatchResult)
 
 
 def facts_for_matching(document: Dict[str, Any]) -> Dict[str, Any]:
@@ -87,7 +84,9 @@ def find_matching_documents_node(state: AgentState) -> Dict[str, Any]:
     </candidates>
     """
 
-    result = structured_llm.invoke(prompt)
+    result = get_structured_model(
+        "gemini-3.5-flash", TransactionMatchResult
+    ).invoke(prompt)
 
     candidate_ids = {
         document["document_id"] for document in candidate_documents

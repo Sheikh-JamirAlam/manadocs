@@ -1,7 +1,7 @@
 import json
 from typing import Any, Dict
 
-from langchain_google_genai import ChatGoogleGenerativeAI
+from app.services.model_provider import get_structured_model
 from langgraph.types import interrupt
 
 from app.db.documents import update_current_node, update_document_status
@@ -14,10 +14,6 @@ from app.schemas.audit_conflicts import ConflictAuditResult
 from dotenv import load_dotenv
 
 load_dotenv()
-
-
-llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash")
-structured_llm = llm.with_structured_output(ConflictAuditResult)
 
 
 def facts_for_audit(document: Dict[str, Any]) -> Dict[str, Any]:
@@ -38,6 +34,8 @@ def audit_document_conflicts_node(state: AgentState) -> Dict[str, Any]:
     # Gatekeeping for pending conflicts: if any exist, pause the graph and request human resolution
     pending_conflicts = get_pending_conflicts(state.get("thread_id") or "")
     if pending_conflicts:
+        if document_id:
+            update_document_status(document_id, "waiting_for_conflict")
         resolved_conflicts = list(state.get("conflicts") or [])
         while pending_conflicts:
             decision = interrupt({
@@ -46,13 +44,13 @@ def audit_document_conflicts_node(state: AgentState) -> Dict[str, Any]:
                 "message": "Human resolution is required for these conflicts.",
             })
             if not isinstance(decision, dict):
-                raise ValueError("Conflict resolution decision must be an object.")
+                raise ValueError(
+                    "Conflict resolution decision must be an object.")
 
             decision_id = str(decision.get("conflict_id", ""))
-            current_pending_ids = {conflict["id"] for conflict in pending_conflicts}
+            current_pending_ids = {conflict["id"]
+                                   for conflict in pending_conflicts}
             if decision_id not in current_pending_ids:
-                # Ignore a stale queued resume if an earlier resume already
-                # resolved this conflict, then refresh the database state.
                 pending_conflicts = get_pending_conflicts(
                     state.get("thread_id") or "")
                 continue
@@ -133,7 +131,9 @@ def audit_document_conflicts_node(state: AgentState) -> Dict[str, Any]:
         {json.dumps(conflict_documents, ensure_ascii=False, default=str)}
         </documents>
         """
-        conflict_result = structured_llm.invoke(conflict_prompt)
+        conflict_result = get_structured_model(
+            "gemini-3.5-flash", ConflictAuditResult
+        ).invoke(conflict_prompt)
 
         if conflict_result.conflicts:
             stored_conflicts = insert_conflicts(

@@ -132,7 +132,7 @@ export function Library() {
         <div>
           <small>Processed this month</small>
           <strong>{summary?.processed_this_month ?? "—"}</strong>
-          <span>{summary ? `${summary.transaction_count} transactions` : "Loading…"}</span>
+          <span>{summary ? `${summary.transaction_count} processes` : "Loading…"}</span>
         </div>
         <div className="metric-activity">
           <small>Latest activity {summary?.latest_activity && <span>· {new Date(summary.latest_activity.created_at).toLocaleString()}</span>}</small>
@@ -153,9 +153,7 @@ export function Library() {
       <div className="section-heading">
         <div>
           <h2>Document library</h2>
-          <p>
-            {documents.length} documents · {summary?.transaction_count ?? "—"} transactions
-          </p>
+          <p>{documents.length} documents</p>
         </div>
         <div className="filters">
           <input placeholder="Search documents" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -193,15 +191,21 @@ export function Library() {
         >
           <strong>Drop documents here</strong>
           <span>PDF, DOCX, TXT up to 50 MB</span>
-          <button className="secondary" type="button" onClick={(e) => {
-            e.stopPropagation();
-            uploadInputRef.current?.click();
-          }}>Browse files</button>
+          <button
+            className="secondary"
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              uploadInputRef.current?.click();
+            }}
+          >
+            Browse files
+          </button>
         </div>
         <div className="mini-card dark-card">
-          <small>ACTIVE TRANSACTION</small>
-          <strong>{summary?.active_transaction?.thread_id?.slice(0, 8) || "No active transaction"}</strong>
-          <p>{summary?.active_transaction ? `${summary.active_transaction.document_count} documents linked` : "Transactions appear after documents are matched."}</p>
+          <small>ACTIVE PROCESS</small>
+          <strong>{summary?.active_transaction?.thread_id?.slice(0, 8) || "No active process"}</strong>
+          <p>{summary?.active_transaction ? `${summary.active_transaction.document_count} documents linked` : "Processes appear after documents are matched."}</p>
         </div>
         <div className="mini-card accent-card">
           <small>WORKFLOW STATUS</small>

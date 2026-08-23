@@ -7,7 +7,7 @@ from typing import Any
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.types import Command
 
-from app.db.documents import update_document_status
+from app.db.documents import find_document_by_thread_id, save_document_error, update_document_status
 from app.graph.workflow import build_extraction_graph, get_database_url
 from app.db.workflow_events import record_workflow_event
 
@@ -20,10 +20,14 @@ _worker_task: asyncio.Task[None] | None = None
 async def _resume_workflow(thread_id: str, decision: dict[str, Any]) -> None:
     async with AsyncPostgresSaver.from_conn_string(get_database_url()) as checkpointer:
         graph = build_extraction_graph(checkpointer)
-        await graph.ainvoke(
+        result = await graph.ainvoke(
             Command(resume=decision),
             config={"configurable": {"thread_id": thread_id}},
         )
+        if result.get("error"):
+            document = find_document_by_thread_id(thread_id)
+            if document:
+                save_document_error(str(document["id"]), str(result["error"]))
 
 
 async def _worker() -> None:
@@ -31,10 +35,12 @@ async def _worker() -> None:
         thread_id, decision = await _queue.get()
         try:
             await _resume_workflow(thread_id, decision)
-        except Exception:
+        except Exception as exc:
             logger.exception("Queued workflow failed for thread %s", thread_id)
-            # The graph normally persists failure state; this event still gives
-            # connected clients an immediate diagnostic signal.
+            document = find_document_by_thread_id(thread_id)
+            if document:
+                save_document_error(
+                    str(document["id"]), f"Workflow failed: {exc}")
         finally:
             _queue.task_done()
 
@@ -42,7 +48,8 @@ async def _worker() -> None:
 def start_worker() -> None:
     global _worker_task
     if _worker_task is None or _worker_task.done():
-        _worker_task = asyncio.create_task(_worker(), name="workflow-queue-worker")
+        _worker_task = asyncio.create_task(
+            _worker(), name="workflow-queue-worker")
 
 
 async def stop_worker() -> None:

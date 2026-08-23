@@ -2,7 +2,7 @@ import json
 from typing import Any, Dict
 
 from dotenv import load_dotenv
-from langchain_google_genai import ChatGoogleGenerativeAI
+from app.services.model_provider import get_structured_model
 
 from app.graph.state import AgentState
 from app.db.deliverables import (
@@ -19,12 +19,20 @@ from app.services.markdown_deliverable import rebuild_master_deliverable
 
 load_dotenv()
 
-llm = ChatGoogleGenerativeAI(model="gemini-3.6-flash")
-structured_llm = llm.with_structured_output(Deliverable)
-
 
 # Generate the master report from the facts
 def generate_deliverable_node(state: AgentState) -> Dict[str, Any]:
+    extracted_facts = state.get("extracted_facts")
+    if extracted_facts is None:
+        return {
+            "error": "Cannot generate deliverable: extracted_facts is missing.",
+        }
+    if hasattr(extracted_facts, "model_dump"):
+        extracted_facts = extracted_facts.model_dump(mode="json")
+    if not isinstance(extracted_facts, dict) or not extracted_facts.get("document_type"):
+        return {
+            "error": "Cannot generate deliverable: extracted_facts is structurally invalid.",
+        }
     if state.get("document_id"):
         update_current_node(state["document_id"], "generate_deliverable")
     current_document_id = str(state.get("document_id") or "")
@@ -48,9 +56,6 @@ def generate_deliverable_node(state: AgentState) -> Dict[str, Any]:
         }
 
     existing_deliverable = find_by_related_document_ids(matched_document_ids)
-    extracted_facts = state.get("extracted_facts")
-    if hasattr(extracted_facts, "model_dump"):
-        extracted_facts = extracted_facts.model_dump(mode="json")
     enforced_findings = get_enforced_findings(
         state.get("rule_violations"), state.get("conflicts")
     )
@@ -143,7 +148,9 @@ def generate_deliverable_node(state: AgentState) -> Dict[str, Any]:
     """
 
     try:
-        result = structured_llm.invoke(prompt)
+        result = get_structured_model(
+            "gemini-3.6-flash", Deliverable
+        ).invoke(prompt)
         related_ids = list(dict.fromkeys(
             (existing_deliverable or {}).get("related_document_ids", []) +
             matched_document_ids +

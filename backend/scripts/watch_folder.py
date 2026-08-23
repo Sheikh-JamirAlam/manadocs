@@ -6,6 +6,7 @@ from app.db.documents import (
     find_document_by_thread_id,
     increment_retry_count,
     register_document,
+    save_document_error,
 )
 
 import asyncio
@@ -103,7 +104,15 @@ async def process_document(graph: Any, path: Path) -> dict[str, Any]:
         else:
             invocation_input = None
         print(f"Resuming {path.name} ({existing_status})")
-        return await graph.ainvoke(invocation_input, config=config)
+        try:
+            result = await graph.ainvoke(invocation_input, config=config)
+        except Exception as exc:
+            message = f"Workflow failed: {exc}"
+            save_document_error(str(document_id), message)
+            return {**registration, "document_id": str(document_id), "thread_id": str(thread_id), "error": message}
+        if result.get("error"):
+            save_document_error(str(document_id), str(result["error"]))
+        return result
 
     print(f"Processing {path.name}")
 
@@ -116,7 +125,15 @@ async def process_document(graph: Any, path: Path) -> dict[str, Any]:
         "error": None,
     }
 
-    return await graph.ainvoke(state, config=config)
+    try:
+        result = await graph.ainvoke(state, config=config)
+    except Exception as exc:
+        message = f"Workflow failed: {exc}"
+        save_document_error(str(document_id), message)
+        return {"document_id": str(document_id), "thread_id": str(thread_id), "error": message}
+    if result.get("error"):
+        save_document_error(str(document_id), str(result["error"]))
+    return result
 
 
 async def watch() -> None:

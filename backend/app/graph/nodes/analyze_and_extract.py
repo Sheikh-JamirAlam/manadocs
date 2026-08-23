@@ -10,14 +10,17 @@ from app.db.chunks import register_chunks
 import os
 from pathlib import Path
 from typing import Any, Dict
-from langchain_google_genai import ChatGoogleGenerativeAI
+from app.services.model_provider import get_structured_model
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
-llm = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite")
-structured_llm = llm.with_structured_output(DocumentExtractionResult)
+EXTRACTION_FORBIDDEN_FIELDS = {
+    "compliance_status",
+    "injection_attempt_detected",
+    "injection_attempt_note",
+}
 
 
 # LangGraph node for analyzing a document and extracting structured facts
@@ -131,7 +134,21 @@ def analyze_and_extract_node(state: AgentState) -> Dict[str, Any]:
         </document>
         """
 
-        extraction_result = structured_llm.invoke(prompt)
+        extraction_result = get_structured_model(
+            "gemini-3.5-flash-lite", DocumentExtractionResult
+        ).invoke(prompt)
+        forbidden_facts = [
+            fact.field_name
+            for fact in extraction_result.facts
+            if fact.field_name in EXTRACTION_FORBIDDEN_FIELDS
+        ]
+        if forbidden_facts:
+            error_message = (
+                "Extraction returned fields owned by downstream compliance "
+                f"evaluation: {', '.join(forbidden_facts)}"
+            )
+            save_document_error(str(document_id), error_message)
+            return {"error": error_message, "extracted_facts": None}
         citation_payload = calculate_exact_citation(
             extraction_result,
             extract_pages(Path(document_path)),
