@@ -1,12 +1,12 @@
-# DocTask
+# ManaDocs
 
-DocTask is an agentic document-review system for vendor contracts, amendments, invoices, and other documents that describe the same business transaction.
+ManaDocs is an agentic document-review system for vendor contracts, amendments, invoices, and other documents that describe the same business transaction.
 
 It watches a folder for new documents, extracts grounded facts with citations, matches related documents, detects conflicts, checks configurable business rules, and produces a consolidated deliverable. Conflicts and rule findings are paused for human review before the workflow continues. Workflow state is checkpointed in PostgreSQL, and progress is available through Server-Sent Events so a client can display each stage as it runs.
 
 ## System Architecture
 
-DocTask uses a React frontend, a FastAPI backend, a LangGraph workflow, and PostgreSQL with pgvector. Documents can enter through the watched folder, the REST API, or the MCP server. All entry points converge on the same queued workflow and human review gates.
+ManaDocs uses a React frontend, a FastAPI backend, a LangGraph workflow, and PostgreSQL with pgvector. Documents can enter through the watched folder, the REST API, or the MCP server. All entry points converge on the same queued workflow and human review gates.
 
 ![System Architecture Diagram](/assets/system-architecture.png)
 
